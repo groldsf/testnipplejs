@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f172a">
+<title>Змейка</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    touch-action: none;
+    overscroll-behavior: none;
+  }
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    height: 100dvh;
+    max-width: 540px;
+    margin: 0 auto;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 18px 8px;
+  }
+  .title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    background: linear-gradient(135deg, #4ade80, #22d3ee);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .score-box {
+    display: flex;
+    gap: 14px;
+    font-size: 12px;
+    color: #94a3b8;
+    text-align: right;
+  }
+  .score-box b {
+    color: #f1f5f9;
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .pause-btn {
+    width: 42px;
+    height: 42px;
+    border: none;
+    border-radius: 50%;
+    background: #1e293b;
+    color: #e2e8f0;
+    font-size: 15px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 3px 0 #0f172a, inset 0 0 0 1px #334155;
+    cursor: pointer;
+    transition: transform 0.06s ease, background 0.1s ease;
+  }
+  .pause-btn:active {
+    background: #334155;
+    transform: translateY(2px);
+  }
+  #stage {
+    flex: 1;
+    position: relative;
+    margin: 6px 12px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #1e293b;
+    box-shadow: inset 0 0 0 1px #334155, 0 8px 24px rgba(0,0,0,0.35);
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    image-rendering: pixelated;
+  }
+  /* floating joystick (custom, appears at touch point) */
+  #joy {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    display: none;
+  }
+  #joy .base {
+    position: absolute;
+    width: 130px;
+    height: 130px;
+    border-radius: 50%;
+    background: rgba(148, 163, 184, 0.15);
+    border: 2px solid rgba(226, 232, 240, 0.35);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    transform: translate(-50%, -50%);
+  }
+  #joy .knob {
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #f1f5f9, #94a3b8);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+    transform: translate(-50%, -50%);
+  }
+  /* Overlay (start / pause / game over) */
+  #overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: rgba(15, 23, 42, 0.82);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 5;
+    transition: opacity 0.25s ease;
+  }
+  #overlay.hidden { opacity: 0; pointer-events: none; }
+  #overlay h1 {
+    font-size: 28px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #4ade80, #22d3ee);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  #overlay p { font-size: 13px; color: #94a3b8; text-align: center; max-width: 290px; line-height: 1.55; }
+  .btn {
+    margin-top: 4px;
+    padding: 13px 28px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(34, 197, 94, 0.4);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .btn:active { transform: translateY(2px); box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3); }
+
+  .hint {
+    text-align: center;
+    font-size: 11px;
+    color: #64748b;
+    padding: 2px 12px 8px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="title">🐍 Змейка</div>
+    <div class="header-right">
+      <div class="score-box">
+        <div>Счёт<br><b id="score">0</b></div>
+        <div>Рекорд<br><b id="best">0</b></div>
+      </div>
+      <button id="pause-btn" class="pause-btn" aria-label="Пауза">II</button>
+    </div>
+  </header>
+
+  <div id="stage">
+    <canvas id="game"></canvas>
+    <div id="overlay">
+      <h1 id="ov-title">Змейка</h1>
+      <p id="ov-text">Коснись игрового поля и веди пальцем — под пальцем появится джойстик. Змейка поворачивает в сторону наклона.</p>
+      <button class="btn" id="start-btn">Играть</button>
+    </div>
+  </div>
+
+  <div class="hint">Касание в любом месте поля — джойстик • На ПК: стрелки / WASD, пауза — P</div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Setup ----------
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const stage = document.getElementById('stage');
+  const overlay = document.getElementById('overlay');
+  const ovTitle = document.getElementById('ov-title');
+  const ovText = document.getElementById('ov-text');
+  const startBtn = document.getElementById('start-btn');
+  const pauseBtn = document.getElementById('pause-btn');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+
+  const GRID = 17;                  // logical cells per row/column
+  let cellSize = 0;                 // recomputed on resize
+  let sizePx = 0;                   // canvas side length in CSS px
+  let dpr = 1;
+
+  // Game state
+  let snake = [];
+  let dir = { x: 1, y: 0 };
+  let nextDir = { x: 1, y: 0 };
+  let food = { x: 0, y: 0 };
+  let score = 0;
+  let best = parseInt(localStorage.getItem('snake_best') || '0', 10);
+  bestEl.textContent = best;
+
+  let running = false;
+  let paused = false;
+  let gameOver = false;
+  let lastStep = 0;
+  let stepInterval = 130;          // ms per cell
+  let rafId = null;
+
+  // ---------- Sizing ----------
+  function resize() {
+    const rect = stage.getBoundingClientRect();
+    const side = Math.min(rect.width, rect.height);
+    dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    sizePx = Math.floor(side);
+    canvas.style.width = side + 'px';
+    canvas.style.height = side + 'px';
+    canvas.width = Math.floor(side * dpr);
+    canvas.height = Math.floor(side * dpr);
+    cellSize = (side * dpr) / GRID;
+    draw();
+  }
+  window.addEventListener('resize', resize);
+
+  // ---------- Helpers ----------
+  function key(x, y) { return x + ',' + y; }
+
+  function placeFood() {
+    const occupied = new Set(snake.map(s => key(s.x, s.y)));
+    const free = [];
+    for (let y = 0; y < GRID; y++) {
+      for (let x = 0; x < GRID; x++) {
+        if (!occupied.has(key(x, y))) free.push({ x: x, y: y });
+      }
+    }
+    if (free.length === 0) { win(); return; }
+    food = free[Math.floor(Math.random() * free.length)];
+  }
+
+  function reset() {
+    const mid = Math.floor(GRID / 2);
+    snake = [
+      { x: mid - 1, y: mid },
+      { x: mid - 2, y: mid },
+      { x: mid - 3, y: mid }
+    ];
+    dir = { x: 1, y: 0 };
+    nextDir = { x: 1, y: 0 };
+    syncJoystickCand();
+    score = 0;
+    scoreEl.textContent = score;
+    stepInterval = 130;
+    gameOver = false;
+    paused = false;
+    pauseBtn.textContent = 'II';
+    placeFood();
+  }
+
+  // ---------- Input: custom floating joystick ----------
+  // Appears at the touch point; direction is measured FROM the touch origin
+  // (absolute), not from finger movement deltas. Base stays fixed, knob is
+  // capped inside the base circle.
+  // Angle convention: 0deg = right, 90deg = up (math, counterclockwise)
+  const DIRS = [ { x: 1, y: 0 }, { x: 0, y: -1 }, { x: -1, y: 0 }, { x: 0, y: 1 } ];
+  let lastCand = 0;
+  const SECTOR_MARGIN = 10;   // deg of hysteresis near 45deg boundaries
+  const JOY_R = 43;           // max knob offset (base 130px, knob 44px)
+  const DEAD_ZONE = 8;        // px of pull before a turn registers
+
+  function angDiff(a, b) {
+    let d = Math.abs(a - b) % 360;
+    return d > 180 ? 360 - d : d;
+  }
+
+  function syncJoystickCand() {
+    for (let i = 0; i < 4; i++) {
+      if (DIRS[i].x === dir.x && DIRS[i].y === dir.y) { lastCand = i; return; }
+    }
+    lastCand = 0;
+  }
+
+  function setDir(nx, ny) {
+    // forbid reversing into itself
+    if (snake.length > 1 && nx === -dir.x && ny === -dir.y) return;
+    nextDir = { x: nx, y: ny };
+  }
+
+  // joystick DOM
+  const joyEl = document.createElement('div');
+  joyEl.id = 'joy';
+  joyEl.innerHTML = '<div class="base"></div><div class="knob"></div>';
+  stage.appendChild(joyEl);
+  const joyBase = joyEl.querySelector('.base');
+  const joyKnob = joyEl.querySelector('.knob');
+
+  let joyActive = false;
+  let origin = null;          // {x, y} zone-relative CSS px
+
+  function joyShow(x, y) {
+    joyEl.style.display = 'block';
+    joyBase.style.left = x + 'px';
+    joyBase.style.top = y + 'px';
+    joyKnob.style.left = x + 'px';
+    joyKnob.style.top = y + 'px';
+  }
+  function joyKnobMove(x, y) {
+    joyKnob.style.left = x + 'px';
+    joyKnob.style.top = y + 'px';
+  }
+  function joyHide() { joyEl.style.display = 'none'; }
+
+  stage.addEventListener('pointerdown', function (e) {
+    if (!running || paused || gameOver) return;
+    const r = stage.getBoundingClientRect();
+    origin = { x: e.clientX - r.left, y: e.clientY - r.top };
+    joyActive = true;
+    syncJoystickCand();
+    joyShow(origin.x, origin.y);
+    try { stage.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+
+  stage.addEventListener('pointermove', function (e) {
+    if (!joyActive || !origin) return;
+    if (!running || paused || gameOver) { joyEnd(); return; }
+    const r = stage.getBoundingClientRect();
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    let dx = x - origin.x;
+    let dy = y - origin.y;
+    const len = Math.hypot(dx, dy);
+    if (len > JOY_R) { dx = dx * JOY_R / len; dy = dy * JOY_R / len; }
+    joyKnobMove(origin.x + dx, origin.y + dy);
+    if (len < DEAD_ZONE) return;
+    const deg = ((Math.atan2(-(y - origin.y), x - origin.x) * 180 / Math.PI) + 360) % 360;
+    const cand = Math.round(deg / 90) % 4;
+    if (cand === lastCand) return;
+    // hysteresis: commit only when safely inside the new sector
+    if (angDiff(deg, cand * 90) > 45 - SECTOR_MARGIN) return;
+    lastCand = cand;
+    window.__snakeLog = (window.__snakeLog || []);
+    window.__snakeLog.push(Math.round(deg) + '>' + cand);
+    setDir(DIRS[cand].x, DIRS[cand].y);
+  });
+
+  function joyEnd() {
+    joyActive = false;
+    origin = null;
+    joyHide();
+  }
+  stage.addEventListener('pointerup', joyEnd);
+  stage.addEventListener('pointercancel', joyEnd);
+
+  // keyboard (desktop)
+  window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
+    if (!running) return;
+    if (k === ' ' || k === 'p') { togglePause(); return; }
+    if (paused || gameOver) return;
+    if (k === 'arrowup' || k === 'w')    setDir(0, -1);
+    if (k === 'arrowdown' || k === 's')  setDir(0, 1);
+    if (k === 'arrowleft' || k === 'a')  setDir(-1, 0);
+    if (k === 'arrowright' || k === 'd') setDir(1, 0);
+  });
+
+  pauseBtn.addEventListener('click', togglePause);
+  function togglePause() {
+    if (!running || gameOver) return;
+    paused = !paused;
+    pauseBtn.textContent = paused ? '▶' : 'II';
+    if (paused) {
+      showOverlay('Пауза', 'Отдохни. Нажми «Продолжить», чтобы играть дальше.', 'Продолжить');
+    } else {
+      hideOverlay();
+      lastStep = performance.now();
+    }
+  }
+
+  startBtn.addEventListener('click', () => {
+    if (gameOver || !running) {
+      startGame();
+    } else if (paused) {
+      paused = false;
+      pauseBtn.textContent = 'II';
+      hideOverlay();
+      lastStep = performance.now();
+    }
+  });
+
+  // ---------- Loop ----------
+  function startGame() {
+    reset();
+    running = true;
+    hideOverlay();
+    lastStep = performance.now();
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function loop(now) {
+    rafId = requestAnimationFrame(loop);
+    if (!running || paused || gameOver) { draw(); return; }
+    if (now - lastStep >= stepInterval) {
+      step();
+      lastStep = now;
+    }
+    draw();
+  }
+
+  function step() {
+    dir = nextDir;
+    const head = snake[0];
+    const nx = head.x + dir.x;
+    const ny = head.y + dir.y;
+
+    // wall collision
+    if (nx < 0 || ny < 0 || nx >= GRID || ny >= GRID) { endGame(); return; }
+    // self collision
+    for (let i = 0; i < snake.length; i++) {
+      if (snake[i].x === nx && snake[i].y === ny) { endGame(); return; }
+    }
+
+    snake.unshift({ x: nx, y: ny });
+    if (nx === food.x && ny === food.y) {
+      score++;
+      scoreEl.textContent = score;
+      if (score > best) {
+        best = score;
+        bestEl.textContent = best;
+        localStorage.setItem('snake_best', best);
+      }
+      // speed up slightly
+      stepInterval = Math.max(70, stepInterval - 3);
+      placeFood();
+    } else {
+      snake.pop();
+    }
+  }
+
+  function endGame() {
+    gameOver = true;
+    running = false;
+    showOverlay('Игра окончена',
+      'Ты набрал <b>' + score + '</b> очков.<br>Рекорд: <b>' + best + '</b>.',
+      'Играть снова');
+  }
+
+  function win() {
+    gameOver = true;
+    running = false;
+    showOverlay('Победа!', 'Поле заполнено! Счёт: <b>' + score + '</b>.', 'Ещё раз');
+  }
+
+  // ---------- Overlay ----------
+  function showOverlay(title, html, btnText) {
+    ovTitle.textContent = title;
+    ovText.innerHTML = html;
+    startBtn.textContent = btnText;
+    overlay.classList.remove('hidden');
+  }
+  function hideOverlay() { overlay.classList.add('hidden'); }
+
+  // ---------- Drawing ----------
+  function roundRect(x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  function draw() {
+    const W = canvas.width, H = canvas.height;
+    // background
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, 0, W, H);
+
+    // subtle grid
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.07)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i < GRID; i++) {
+      const p = i * cellSize;
+      ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(W, p); ctx.stroke();
+    }
+
+    // food (apple)
+    const pad = cellSize * 0.18;
+    const fx = food.x * cellSize + pad;
+    const fy = food.y * cellSize + pad;
+    const fs = cellSize - pad * 2;
+    const grad = ctx.createRadialGradient(
+      fx + fs/2 - fs*0.15, fy + fs/2 - fs*0.15, fs*0.1,
+      fx + fs/2, fy + fs/2, fs*0.7
+    );
+    grad.addColorStop(0, '#fda4af');
+    grad.addColorStop(1, '#e11d48');
+    ctx.fillStyle = grad;
+    roundRect(fx, fy, fs, fs, fs * 0.35);
+    ctx.fill();
+    // leaf
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.ellipse(fx + fs * 0.65, fy + fs * 0.05, fs * 0.18, fs * 0.1, -Math.PI/4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // snake
+    const seg = cellSize;
+    for (let i = snake.length - 1; i >= 0; i--) {
+      const s = snake[i];
+      const x = s.x * seg + seg * 0.08;
+      const y = s.y * seg + seg * 0.08;
+      const w = seg * 0.84;
+      const r = w * 0.28;
+      if (i === 0) {
+        const g = ctx.createLinearGradient(x, y, x + w, y + w);
+        g.addColorStop(0, '#86efac');
+        g.addColorStop(1, '#22c55e');
+        ctx.fillStyle = g;
+      } else {
+        const t = i / snake.length;
+        ctx.fillStyle = 'rgb(34, ' + (197 - Math.round(t*60)) + ', ' + (94 + Math.round(t*30)) + ')';
+      }
+      roundRect(x, y, w, w, r);
+      ctx.fill();
+
+      // eyes on head
+      if (i === 0) {
+        ctx.fillStyle = '#0f172a';
+        const ex = x + w * 0.5, ey = y + w * 0.5;
+        const off = w * 0.18, er = w * 0.09;
+        const dx1 = dir.x, dy1 = dir.y;
+        const px = -dy1, py = dx1;
+        const ex1 = ex + dx1 * off + px * off * 0.6;
+        const ey1 = ey + dy1 * off + py * off * 0.6;
+        const ex2 = ex + dx1 * off - px * off * 0.6;
+        const ey2 = ey + dy1 * off - py * off * 0.6;
+        ctx.beginPath(); ctx.arc(ex1, ey1, er, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ex2, ey2, er, 0, Math.PI*2); ctx.fill();
+      }
+    }
+  }
+
+  // ---------- Init ----------
+  resize();
+  reset();
+  draw();
+
+  // debug/test hook (harmless in production)
+  window.__snake = {
+    get dir() { return JSON.stringify(dir); },
+    get nextDir() { return JSON.stringify(nextDir); },
+    get running() { return running; },
+    get gameOver() { return gameOver; },
+    get score() { return score; }
+  };
+})();
+
+</script>
+</body>
+</html>
